@@ -1,0 +1,21 @@
+name: Daily job alert
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 06:00 UTC daily (07:00/08:00 in Germany)
+  workflow_dispatch:       # lets you run it manually to test
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - run: python job_alert.py
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          TO_EMAIL: akeju.taiwo5@gmail.com
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
