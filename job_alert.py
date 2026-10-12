@@ -46,6 +46,47 @@ def looks_english(text: str) -> bool:
     return en > de
 
 
+# STRICT = True  -> only jobs whose text explicitly asks for English AND does not require German
+# STRICT = False -> English-language posting that does not require German (more results)
+STRICT = True
+
+EN_REQ = re.compile(
+    r"(fluent|fluency|proficien\w*|excellent|good|strong|business[- ]level|professional|full)"
+    r"\s+(written\s+and\s+spoken\s+|spoken\s+and\s+written\s+)?(in\s+)?english"
+    r"|english\s+(language\s+)?(skills|proficiency|fluency|level|is required|is a must|required|is mandatory|speaking)"
+    r"|working language is english|company language is english|corporate language is english"
+    r"|english[- ]speaking|communicat\w+ in english|business english"
+    r"|(spoken|written)( and (spoken|written))? english|english (c1|c2|b2)|(c1|c2|b2)[^.]{0,20}english",
+    re.I)
+
+DE_REQ = re.compile(
+    r"(fluent|fluency|proficien\w*|excellent|good|strong|native|business[- ]level|very good)\s+(in\s+)?german"
+    r"|german\s+(language\s+)?(skills|proficiency|fluency|is required|required|is a must|mandatory|native)"
+    r"|deutsch(kenntnisse)?\s+(verhandlungssicher|fließend|fliessend|erforderlich|muttersprache|c1|c2|b2)"
+    r"|verhandlungssicher\w*\s+deutsch|fließend\w*\s+deutsch|german[- ]speaking|german (c1|c2|b2)|(c1|c2|b2)[^.]{0,20}german",
+    re.I)
+
+OPTIONAL = re.compile(r"plus|advantage|nice|bonus|benefici|desirable|welcome|asset|helpful|preferred", re.I)
+
+
+def requires_german(text: str) -> bool:
+    for m in DE_REQ.finditer(text):
+        after = text[m.end(): m.end() + 40]
+        before = text[max(0, m.start() - 40): m.start()]
+        if not (OPTIONAL.search(after) or OPTIONAL.search(before)):
+            return True
+    return False
+
+
+def english_ok(text: str) -> bool:
+    """Decide whether a job passes the English-language requirement."""
+    if requires_german(text):
+        return False
+    if STRICT:
+        return bool(EN_REQ.search(text))
+    return looks_english(text)
+
+
 def title_matches(title: str) -> bool:
     t = title.lower()
     return any(k in t for k in TITLE_KEYWORDS)
@@ -72,7 +113,7 @@ def fetch_arbeitnow(cutoff):
                 continue
             if not title_matches(j["title"]):
                 continue
-            if not looks_english(j["title"] + " " + j.get("description", "")):
+            if not english_ok(j["title"] + " " + re.sub(r"<[^>]+>", " ", j.get("description", ""))):
                 continue
             loc = j.get("location", "")
             jobs.append({"title": j["title"], "company": j["company_name"],
@@ -95,7 +136,7 @@ def fetch_adzuna():
                         "content-type": "application/json"}, timeout=30)
             r.raise_for_status()
             for j in r.json().get("results", []):
-                if not looks_english(j["title"] + " " + j.get("description", "")):
+                if not english_ok(j["title"] + " " + j.get("description", "")):
                     continue
                 loc = j.get("location", {}).get("display_name", "")
                 jobs.append({"title": j["title"],
@@ -155,4 +196,5 @@ if __name__ == "__main__":
     nrw_count = sum(j["nrw"] for j in jobs)
     print(f"Found {len(jobs)} jobs ({nrw_count} in NRW)")
     send(build_email(jobs), len(jobs), nrw_count)
+  
    
